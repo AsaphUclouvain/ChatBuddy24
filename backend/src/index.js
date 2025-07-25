@@ -5,50 +5,67 @@ const {Server} = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"]
+  }
+});
 const PORT = process.env.PORT;
-let users = {};
-let userCount = 1;
-const welcomeMessage = (usersConnected, userNumber) => {
+const welcomeMessage = (strangerUser, strangerGender, strangerCountry) => {
     return (
     `
         Welcome to the Talk to Stranger room! 👋
 
-        There are currently ${usersConnected} user/s connected.
-        You identify as: <i>Stranger ${userNumber}</i>
-
         Please be respectful and kind to everyone here.
+
         Remember:
         - Follow the community rules at all times.
         - This room is only for users aged 18 and above.
 
         Enjoy your conversation and stay safe! 😊
+
+        You have been connected with ${strangerUser}, they are a ${strangerGender} and from ${strangerCountry}.
     `
     )
 }
 
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/index.html');
-});
+let users = [];
 
 io.on('connection', (socket) => {
-    socket.emit("welcome message", welcomeMessage(Object.keys(users).length, Object.keys(users).length + 1));
-    users[socket.id] = `Stranger ${userCount}`;
-    socket.broadcast.emit("broadcast", `A new stranger just joined the chat, ${users[socket.id]}!`);
-    userCount += 1;
-    
+    console.log("user connected");
+    socket.on("user details", (data) => {
+        socket.username = data.username;
+        socket.gender = data.gender;
+        console.log(socket.username, socket.gender);
+
+        if (users.length > 0) {
+            const partnerStranger = users.shift();
+            const roomId = `room_${socket.id}_${partnerStranger.id}`;
+
+            socket.join(roomId);
+            partnerStranger.join(roomId);
+
+            socket.room = roomId;
+            partnerStranger.room = roomId;
+
+            socket.emit("matched", roomId);
+            partnerStranger.emit("matched", roomId);
+
+        } else {
+            users.push(socket);
+        }
+    })
+
     socket.on("chat message", (msg) => {
-        io.emit('chat message', `${users[socket.id]}: ${msg}`);
+        socket.to(socket.room).emit("chat message", `${socket.username}: ${msg}`)
+        socket.emit("chat message", `You: ${msg}`);
     })
 
     socket.on("typing", () => {
-        socket.broadcast.emit("userTyping", users[socket.id]);
+        socket.to(socket.room).emit("userTyping", {user: "strangers"});
     })
 
-    socket.on('disconnect', () => {
-        delete users[socket.id];
-        userCount -= 1;
-    })
 })
 
 server.listen(PORT, () => {
