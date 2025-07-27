@@ -2,6 +2,8 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const {Server} = require("socket.io");
+const geoip = require("geoip-country");
+const connectDB = require("../utils/db_connect");
 
 const app = express();
 const server = http.createServer(app);
@@ -12,62 +14,81 @@ const io = new Server(server, {
   }
 });
 const PORT = process.env.PORT;
-const welcomeMessage = (strangerUser, strangerGender, strangerCountry) => {
-    return (
-    `
-        Welcome to the Talk to Stranger room! 👋
 
-        Please be respectful and kind to everyone here.
+(async () => {
+    const db = await connectDB();
+    const queueCreated = await db.exists("userQueue");
 
-        Remember:
-        - Follow the community rules at all times.
-        - This room is only for users aged 18 and above.
+    if (!queueCreated) {
+        await db.rPush("userQueue", "decoy");
+        await db.lPop("userQueue");
+    };
 
-        Enjoy your conversation and stay safe! 😊
+    io.on('connection', (socket) => {
+        // const xForwardedFor = socket.handshake.headers["x-forwarded-for"];
+        // const ipAddress = xForwardedFor ? xForwardedFor.split(",")[0].trim() : socket.handshake.address;
+        // const country = geoip.lookup(ipAddress);
+        socket.on("user details", async (data) => {
+            socket.username = data.username;
+            socket.gender = data.gender;
 
-        You have been connected with ${strangerUser}, they are a ${strangerGender} and from ${strangerCountry}.
-    `
-    )
-}
+            const queueLength = await db.lLen("userQueue");
+            if (queueLength > 0) {
+                const partnerUserData = await db.lPop("userQueue");
+                const partnerUser = JSON.parse(partnerUserData);
+                const partnerStranger = io.sockets.sockets.get(partnerUser.socketId);
+                if (partnerStranger) {
+                    const roomId = `room_${socket.id}_${partnerStranger.id}`;
 
-let users = [];
+                    socket.join(roomId);
+                    partnerStranger.join(roomId);
 
-io.on('connection', (socket) => {
-    console.log("user connected");
-    socket.on("user details", (data) => {
-        socket.username = data.username;
-        socket.gender = data.gender;
-        console.log(socket.username, socket.gender);
+                    socket.room = roomId;
+                    partnerStranger.room = roomId;
 
-        if (users.length > 0) {
-            const partnerStranger = users.shift();
-            const roomId = `room_${socket.id}_${partnerStranger.id}`;
+                    socket.emit("matched", {roomId: roomId, username: socket.username, gender: socket.gender, partnerUsername: partnerStranger.username, partnerGender: partnerStranger.gender});
+                    partnerStranger.emit("matched", {roomId: roomId, username: partnerStranger.username, gender: partnerStranger.gender, partnerUsername: socket.username, partnerGender: socket.gender});
+                } else {
+                    console.log("Problem, no stranger found!");
+                }
+            } else {
+                const user = {
+                    socketId: socket.id,
+                    username: socket.username,
+                    gender: socket.gender
+                };
+                await db.rPush("userQueue", JSON.stringify(user));
+            }
+        });
 
-            socket.join(roomId);
-            partnerStranger.join(roomId);
+        socket.on("chat message", (msg) => {
+            socket.to(socket.room).emit("chat message", `${socket.username}: ${msg}`)
+            socket.emit("chat message", `You: ${msg}`);
+        });
 
-            socket.room = roomId;
-            partnerStranger.room = roomId;
+        socket.on("typing", () => {
+            socket.to(socket.room).emit("userTyping", {user: "strangers"});
+        });
 
-            socket.emit("matched", roomId);
-            partnerStranger.emit("matched", roomId);
+        socket.on("disconnect", async () => {
+            const user = {
+                    socketId: socket.id,
+                    username: socket.username,
+                    gender: socket.gender
+                };
+            const queuePresence = await db.lPos("userQueue", JSON.stringify(user));
+            if (queuePresence !== -1) {
+                await db.lRem("userQueue", 0, JSON.stringify(user));
+            }
 
-        } else {
-            users.push(socket);
-        }
-    })
+            if (socket.room) {
+                socket.to(socket.room).emit("strangerDisconnected");
+            };
+            socket.room = "";
+        });
+    });
 
-    socket.on("chat message", (msg) => {
-        socket.to(socket.room).emit("chat message", `${socket.username}: ${msg}`)
-        socket.emit("chat message", `You: ${msg}`);
-    })
-
-    socket.on("typing", () => {
-        socket.to(socket.room).emit("userTyping", {user: "strangers"});
-    })
-
-})
-
-server.listen(PORT, () => {
-    console.log(`Server is running on port: ${PORT}`)
-})
+    server.listen(PORT, () => {
+        console.log(`Server is running on port: ${PORT}`);
+    });
+})();

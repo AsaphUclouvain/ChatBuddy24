@@ -22,7 +22,7 @@ const UserDetailsForm = ({setUserName, setGender, sendData}) => {
             id="gender"
             name="gender"
             type="radio"
-            value="male"
+            value="M"
             onChange={(e) => {setGender(e.target.value)}}
             required
           />
@@ -33,7 +33,7 @@ const UserDetailsForm = ({setUserName, setGender, sendData}) => {
             id="gender"
             name="gender"
             type="radio"
-            value="female"
+            value="F"
             onChange={(e) => {setGender(e.target.value)}}
             required
           />
@@ -44,7 +44,7 @@ const UserDetailsForm = ({setUserName, setGender, sendData}) => {
             id="gender"
             name="gender"
             type="radio"
-            value="other"
+            value="O"
             onChange={(e) => {setGender(e.target.value)}}
             required
           />

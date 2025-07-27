@@ -4,22 +4,22 @@ import socket from "../utils/socket";
 import UserDetailsForm from "../components/UserDetailsForm";
 
 const Welcome = () => {
-	const [userName, setUserName] = useState("");
+	const [username, setUsername] = useState("");
 	const [gender, setGender] = useState("");
 	const navigate = useNavigate();
 
 	const sendData = (e) => {
 		e.preventDefault();
 		try {
-			socket.emit("user details", {username: userName, gender: gender});
+			socket.emit("user details", {username: username, gender: gender});
 		} catch(err) {
 			console.log(err);
 		}
 	};
 
 	useEffect(() => {
-		socket.on("matched", () => {
-			navigate("/chat");
+		socket.on("matched", (data) => {
+			navigate("/chat", {state: data});
 		});
 
 		return () => {
@@ -30,7 +30,7 @@ const Welcome = () => {
 	return (
 		<>
 			<UserDetailsForm 
-				setUserName = {setUserName}
+				setUserName = {setUsername}
 				setGender= {setGender}
 				sendData= {sendData}
 			/>
