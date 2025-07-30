@@ -1,4 +1,4 @@
-const UserDetailsForm = ({setUserName, setGender, sendData}) => {
+const UserDetailsForm = ({connecting, setUserName, setGender, sendData}) => {
   return (
     <>
       <h3>Welcome to TTS</h3>
@@ -53,11 +53,13 @@ const UserDetailsForm = ({setUserName, setGender, sendData}) => {
 
         <br />
 
-        <input 
+        {!connecting && <input 
           id="connectButton" 
           type="submit" 
           value="Connect" 
-        />
+        />}
+
+        {connecting && <p><strong>Connecting to Stranger...</strong></p>}
       </form>
     </>
   )

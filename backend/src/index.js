@@ -3,6 +3,9 @@ const express = require("express");
 const http = require("http");
 const {Server} = require("socket.io");
 const geoip = require("geoip-country");
+const morgan = require("morgan");
+const cors = require("cors");
+const reportRoute = require("../routes/report");
 const connectDB = require("../utils/db_connect");
 
 const app = express();
@@ -14,6 +17,14 @@ const io = new Server(server, {
   }
 });
 const PORT = process.env.PORT;
+
+app.use(express.json());
+app.use(morgan('dev'));
+app.use(cors({
+    origin:['http://localhost:5173'], 
+    credentials: true
+}));
+app.use('/tts/chats', reportRoute);
 
 (async () => {
     const db = await connectDB();
