@@ -6,18 +6,22 @@ import UserDetailsForm from "../components/UserDetailsForm";
 const Welcome = () => {
 	const [username, setUsername] = useState("");
 	const [gender, setGender] = useState("");
+	const [connecting, setConnecting] = useState(false);
 	const navigate = useNavigate();
 
 	const sendData = (e) => {
 		e.preventDefault();
 		try {
 			socket.emit("user details", {username: username, gender: gender});
+			setConnecting(true);
 		} catch(err) {
 			console.log(err);
 		}
 	};
 
 	useEffect(() => {
+		socket.connect();
+		
 		socket.on("matched", (data) => {
 			navigate("/chat", {state: data});
 		});
@@ -25,11 +29,12 @@ const Welcome = () => {
 		return () => {
 			socket.off("matched");
 		};
-	});
+	}, []);
 
 	return (
 		<>
 			<UserDetailsForm 
+				connecting={connecting}
 				setUserName = {setUsername}
 				setGender= {setGender}
 				sendData= {sendData}

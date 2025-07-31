@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import WelcomeMessage from "../components/messages/WelcomeMessage";
 import DisconnectedMessage from "../components/messages/DisconnectedMessage";
+import report from "../requests/report";
 import "./Chat.css";
 import socket from "../utils/socket";
 
@@ -10,6 +11,8 @@ const Chat = () => {
 	const [messages, setMessages] = useState([]);
 	const [typingIndicator, setTypingIndicator] = useState("");
 	const [strangerDisconnected, setStrangerDisconnected] = useState(false);
+	const [chatReported, setChatReported] = useState(false);
+	const [disconnected, setDisconnected] = useState(false);
 	const messageEvents = ['chat message', 'broadcast', 'welcome message'];
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -29,13 +32,28 @@ const Chat = () => {
 	};
 
 	const addMessage = (msg) => {
-		setMessages((prevMessages) => [...prevMessages, msg])
+		setMessages((prevMessages) => [...prevMessages, msg]);
 	};
+
+	const reportChat = () => {
+		setChatReported(true);
+		report(username, "0", partnerUsername, "0", "", messages);
+	};
+
+	const disconnectFromChat = () => {
+		socket.disconnect();
+	}
+
+	const reInitState = () => {
+		setMessages([]);
+		setStrangerDisconnected(false);
+		console.log(strangerDisconnected);
+	}
 
 	useEffect(() => {
 		if (!roomId || !username || !gender || !partnerUsername || !partnerGender) {
 			navigate('/');
-		}
+		};
 
 	}, [roomId, username, gender, partnerUsername, partnerGender, navigate]);
 
@@ -56,7 +74,7 @@ const Chat = () => {
 
 		socket.on("disconnect", () => {
 			navigate("/");
-		})
+		});
 
 		socket.on("strangerDisconnected", () => {
 			setStrangerDisconnected(true);
@@ -69,7 +87,7 @@ const Chat = () => {
 			socket.off("userTyping");
 			socket.off("strangerDisconnected");
 			socket.off("disconnect");
-		}
+		};
 	}, []);
 	
 	return (
@@ -79,6 +97,9 @@ const Chat = () => {
 				strangerUsername = {partnerUsername}
 				strangerGender = {partnerGender}
 			/>
+			{!disconnected && !strangerDisconnected && <button onClick={disconnectFromChat}>Disconnect</button>}
+			{!chatReported && !strangerDisconnected && <button onClick={reportChat}>Report chat</button>}
+			{chatReported && !strangerDisconnected && <p>This chat has been reported! Stay safe</p>}
 			<ul id="messages">
 				{
 					messages.map((msg, index) => (
@@ -99,9 +120,11 @@ const Chat = () => {
 			</form>
 
 			{strangerDisconnected && <DisconnectedMessage 
+				self = {false}
 				username = {username}
 				gender = {gender}
 				strangerUsername = {partnerUsername}
+				reInitState = {reInitState}
 				/>
 			}
 		</>
