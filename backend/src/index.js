@@ -4,8 +4,10 @@ const http = require("http");
 const {Server} = require("socket.io");
 const geoip = require("geoip-country");
 const connectDB = require("../utils/db_connect");
+const morgan = require('morgan');
 
 const app = express();
+app.use(morgan('dev'));
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
@@ -60,6 +62,8 @@ const PORT = process.env.PORT;
                 await db.rPush("userQueue", JSON.stringify(user));
             }
         });
+        const ipAddress = socket.handshake.address;
+        console.log(ipAddress, "This is the client ipaddress");
 
         socket.on("chat message", (msg) => {
             socket.to(socket.room).emit("chat message", `${socket.username}: ${msg}`)
