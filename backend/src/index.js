@@ -7,26 +7,37 @@ const morgan = require("morgan");
 const cors = require("cors");
 const reportRoute = require("../routes/report");
 const connectDB = require("../utils/db_connect");
-const morgan = require('morgan');
+const {checkBlacklisted, limiter} = require('../middleware/middlewares');
 
 const app = express();
-app.use(morgan('dev'));
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:5173",
-    methods: ["GET", "POST"]
-  }
-});
 const PORT = process.env.PORT;
 
+app.set('trust proxy', true);
+app.use(morgan('dev'));
+app.use(limiter);
 app.use(express.json());
 app.use(morgan('dev'));
 app.use(cors({
-    origin:['http://localhost:5173'], 
+    origin:['http://localhost:5173', 'https://3dff10e7f9df.ngrok-free.app'], 
     credentials: true
 }));
 app.use('/tts/chats', reportRoute);
+
+
+const server = http.createServer(app);
+const io = new Server(server, {
+    connectionStateRecovery: {},
+
+    cors: {
+        origin: ["http://localhost:5173", "https://3dff10e7f9df.ngrok-free.app"],
+        methods: ["GET", "POST"]
+    }
+});
+
+io.use(checkBlacklisted);
+
+
+
 
 (async () => {
     const db = await connectDB();
@@ -73,8 +84,6 @@ app.use('/tts/chats', reportRoute);
                 await db.rPush("userQueue", JSON.stringify(user));
             }
         });
-        const ipAddress = socket.handshake.address;
-        console.log(ipAddress, "This is the client ipaddress");
 
         socket.on("chat message", (msg) => {
             socket.to(socket.room).emit("chat message", `${socket.username}: ${msg}`)

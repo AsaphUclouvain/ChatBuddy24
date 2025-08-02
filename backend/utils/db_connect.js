@@ -16,7 +16,9 @@ const createClient =  async () => {
     });
 
     await client.connect();
-    console.log("connected successfully to REDIS.")
+    
+    console.log("connected successfully to REDIS.");
+
     return client;
 }
 
