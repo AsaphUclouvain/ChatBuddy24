@@ -1,11 +1,20 @@
 const connectDB = require('../utils/db_connect');
 const rateLimit = require('express-rate-limit');
+const { v4 : uuidv4 } = require('uuid');
 
+
+/**
+ * THis middleware check all the ip address at the hanshake before any communication
+*/
 const checkBlacklisted = async (socket, next)=>{
     try{
         const client = await connectDB();
+        
+        const ipCloudfare = socket.handshake.headers["cf-connecting-ip"];
 
-        const ipAddr = socket.handshake.headers["x-forwarded-for"].split(",")[0];
+        const forwaded = socket.handshake.headers["x-forwarded-for"];
+
+        const ipAddr = ipCloudfare || (forwaded ? forwaded.split(",")[0].trim() : socket.handshake.address);
 
         if (!ipAddr){
             return next();
@@ -14,8 +23,7 @@ const checkBlacklisted = async (socket, next)=>{
         const ip = await client.get(`banned:${ipAddr}`) || await client.get(`tmp_banned:${ipAddr}`);
 
         if (ip){
-            socket.disconnect(true);
-            return next();
+            return next(new Error("IP is banned"));
         }
 
         next();
@@ -26,6 +34,9 @@ const checkBlacklisted = async (socket, next)=>{
 
 }
 
+/**
+ * Protect aigainst DDos attack and server crashing, using ip banning temporary
+*/
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,// 15 minutes
     limit:100,//Limit each IP to 100 requests per `window` (here, per 15 minutes).
@@ -47,5 +58,7 @@ const limiter = rateLimit({
         }
     }
 });
+
+
 
 module.exports = {checkBlacklisted, limiter};

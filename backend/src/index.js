@@ -1,28 +1,35 @@
 require("dotenv").config();
+require('../config/passport');
 const express = require("express");
 const http = require("http");
 const {Server} = require("socket.io");
 const geoip = require("geoip-country");
+const cookieParser = require('cookie-parser');
 const morgan = require("morgan");
 const cors = require("cors");
 const reportRoute = require("../routes/report");
 const connectDB = require("../utils/db_connect");
-const {checkBlacklisted, limiter} = require('../middleware/middlewares');
+const extractIp = require('../utils/extract_ip');
+const loginRoute = require('../routes/support_login');
+const bannerRoute = require('../routes/banner');
+const {encrypt, decrypt} = require('../utils/encryption')
+const {checkBlacklisted, limiter} = require('../middlewares/sec_measures');
 
 const app = express();
 const PORT = process.env.PORT;
 
-app.set('trust proxy', true);
+//app.set('trust proxy', true);
 app.use(morgan('dev'));
+app.use(cookieParser(process.env.COOKIE_SIGNING));//for cookie signing
 app.use(limiter);
 app.use(express.json());
-app.use(morgan('dev'));
 app.use(cors({
     origin:['http://localhost:5173', 'https://3dff10e7f9df.ngrok-free.app'], 
     credentials: true
 }));
 app.use('/tts/chats', reportRoute);
-
+app.use('/support', loginRoute);
+app.use('/support', bannerRoute);
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -35,9 +42,6 @@ const io = new Server(server, {
 });
 
 io.use(checkBlacklisted);
-
-
-
 
 (async () => {
     const db = await connectDB();
@@ -52,9 +56,21 @@ io.use(checkBlacklisted);
         // const xForwardedFor = socket.handshake.headers["x-forwarded-for"];
         // const ipAddress = xForwardedFor ? xForwardedFor.split(",")[0].trim() : socket.handshake.address;
         // const country = geoip.lookup(ipAddress);
+
+        socket.onAny(async ()=>{
+            const client = await connectDB();
+            const ipAddr = decrypt(socket.ipInfo);
+
+            if (await client.get(`banned:${ipAddr}`)){
+                socket.emit('');
+                socket.disconnect(true); 
+            }
+        });
+
         socket.on("user details", async (data) => {
             socket.username = data.username;
             socket.gender = data.gender;
+            socket.ipInfo  = encrypt(extractIp(socket));
 
             const queueLength = await db.lLen("userQueue");
             if (queueLength > 0) {
@@ -79,11 +95,13 @@ io.use(checkBlacklisted);
                 const user = {
                     socketId: socket.id,
                     username: socket.username,
-                    gender: socket.gender
+                    gender: socket.gender,
+                    ipInfo:socket.ipInfo
                 };
                 await db.rPush("userQueue", JSON.stringify(user));
             }
         });
+
 
         socket.on("chat message", (msg) => {
             socket.to(socket.room).emit("chat message", `${socket.username}: ${msg}`)
@@ -98,7 +116,8 @@ io.use(checkBlacklisted);
             const user = {
                     socketId: socket.id,
                     username: socket.username,
-                    gender: socket.gender
+                    gender: socket.gender,
+                    ipInfo:socket.ipInfo
                 };
             const queuePresence = await db.lPos("userQueue", JSON.stringify(user));
             if (queuePresence !== -1) {
