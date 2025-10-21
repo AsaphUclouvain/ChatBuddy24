@@ -23,7 +23,6 @@ The challenge was to build a chat service that could support over 100 simultaneo
 | **Backend** | Node.js, Express.js | Creating the core API and server logic. |
 | **Real-Time** | Socket.IO | Managing persistent WebSocket connections and event broadcasting. |
 | **Database** | PostgreSQL / Redis | (Choose one: PostgreSQL for persistent message history, or Redis for a high-speed, non-persistent cache) |
-| **Deployment** | (e.g., Google Cloud Run, Heroku) | (Where is it hosted?) |
 
 ## 🚀 Local Setup & Installation
 
